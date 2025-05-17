@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inventory Management</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .button {
+      padding: 10px 15px;
+      background-color: #17a2b8;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    .button:hover {
+      background-color: #138496;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+    }
+
+    .action-btn {
+      padding: 6px 10px;
+      margin: 0 5px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .update-btn {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .delete-btn {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .update-btn:hover {
+      background-color: #0056b3;
+    }
+
+    .delete-btn:hover {
+      background-color: #c82333;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Inventory Management</h1>
+  
+  <button class="button" onclick="location.href='/create-item'">Create New Item</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Item Name</th>
+        <th>Quantity</th>
+        <th>Price (₹)</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Replace this section dynamically with Flask later -->
+      <tr>
+        <td>101</td>
+        <td>Paracetamol</td>
+        <td>50</td>
+        <td>15.00</td>
+        <td>
+          <button class="action-btn update-btn" onclick="location.href='/update-item/101'">Update</button>
+          <button class="action-btn delete-btn" onclick="location.href='/delete-item/101'">Delete</button>
+        </td>
+      </tr>
+      <!-- Repeat rows for each item -->
+    </tbody>
+  </table>
+
+</body>
+</html>
