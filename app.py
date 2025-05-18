@@ -1,17 +1,25 @@
-from flask import Flask, jsonify, render_template, request
-from model import Customer, Package, db
+from flask import Flask, jsonify, render_template, request, redirect
+#from mongoengine import disconnect
+from pymongo import MongoClient
+from model import init_db
+from bson.objectid import ObjectId
 
+init_db()
+
+from model import   db,Customers_collection,Inventory_collection
+
+#print(f"db is {db.list_collections}")
+#print("Collections:", list(db.list_collection_names()))
+
+# print(f"customer colection {Customers_collection}")
 app = Flask(__name__)
 
-# Connect to MongoDB Atlas
-app.config['MONGODB_SETTINGS'] = {
-    'host': 'mongodb+srv://ankittarar703:qn2yV67wOuP6PV35@cluster0.jyuod1a.mongodb.net/your_db_name?retryWrites=true&w=majority'
-}
-
-db.init_app(app)
 
 @app.route('/')
 def home():
+    for document in Customers_collection.find({}):
+        print(document)
+    
     return "Hello, Flask!"
 
 @app.route("/customer")
@@ -36,75 +44,143 @@ def inventory_page():
 
 # ---- Customer Routes ----
 
-@app.route('/customers', methods=['POST'])
+@app.route('/create-customer', methods=['POST'])
 def create_customer():
-    data = request.json
     try:
-        new_customer = Customer(
-            name=data['name'],
-            address=data['address'],
-            email=data['email'],
-            phone_number=data['phone_number'],
-            number_of_packages=data.get('number_of_packages', 0),
-            returned_number=data.get('returned_number', 0),
-            packages=[]
-        )
-        new_customer.save()
-        return jsonify({"message": "Customer created successfully"}), 201
+        new_customer = {
+            "name": request.form['name'],
+        "address": request.form['address'],
+        "email": request.form['email'],
+        "phone_number": request.form['phone_number'],
+        "number_of_packages": int(request.form.get('number_of_packages', 0)),
+        "returned_number": int(request.form.get('returned_number', 0)),
+        "packages": []
+        }
+        Customers_collection.insert_one(new_customer)
+        return redirect('/')  # Redirect to homepage or customer list after success
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 @app.route('/customers', methods=['GET'])
 def get_all_customers():
-    customers = Customer.objects()
+    customers = Customers_collection.find({})
     result = []
     for c in customers:
         result.append({
-            "id": str(c.id),
-            "name": c.name,
-            "address": c.address,
-            "email": c.email,
-            "phone_number": c.phone_number,
-            "number_of_packages": c.number_of_packages,
-            "returned_number": c.returned_number
+            "id": str(c['_id']),
+            "name": c['name'],
+            "address": c['address'],
+            "email": c['email'],
+            "phone_number": c['phone_number'],
+            "number_of_packages": c['number_of_packages'],
+            "returned_number": c['returned_number']
         })
+        
     return jsonify(result)
 
 @app.route('/customers/<string:id>', methods=['GET'])
 def get_customer(id):
-    customer = Customer.objects.get_or_404(id=id)
-    return jsonify({
-        "id": str(customer.id),
-        "name": customer.name,
-        "address": customer.address,
-        "email": customer.email,
-        "phone_number": customer.phone_number,
-        "number_of_packages": customer.number_of_packages,
-        "returned_number": customer.returned_number
-    })
+    try:
+        customer = Customers_collection.find_one({"_id": ObjectId(id)})
+        if not customer:
+            return jsonify({"error": "Customer not found"}), 404
+
+        return jsonify({
+            "id": str(customer["_id"]),
+            "name": customer.get("name"),
+            "address": customer.get("address"),
+            "email": customer.get("email"),
+            "phone_number": customer.get("phone_number"),
+            "number_of_packages": customer.get("number_of_packages"),
+            "returned_number": customer.get("returned_number")
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 @app.route('/customers/<string:id>', methods=['PUT'])
 def update_customer(id):
-    customer = Customer.objects.get_or_404(id=id)
     data = request.json
+    
+    try:
+        update_result = Customers_collection.update_one(
+            {"_id": ObjectId(id)},
+            {"$set": {
+                "name": data.get("name"),
+                "address": data.get("address"),
+                "email": data.get("email"),
+                "phone_number": data.get("phone_number"),
+                "number_of_packages": data.get("number_of_packages"),
+                "returned_number": data.get("returned_number")
+            }}
+        )
+        if update_result.matched_count == 0:
+            return jsonify({"error": "Customer not found"}), 404
 
-    customer.update(
-        name=data.get('name', customer.name),
-        address=data.get('address', customer.address),
-        email=data.get('email', customer.email),
-        phone_number=data.get('phone_number', customer.phone_number),
-        number_of_packages=data.get('number_of_packages', customer.number_of_packages),
-        returned_number=data.get('returned_number', customer.returned_number)
-    )
-    return jsonify({"message": "Customer updated successfully"})
+        return jsonify({"message": "Customer updated successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    
 
 @app.route('/customers/<string:id>', methods=['DELETE'])
 def delete_customer(id):
-    customer = Customer.objects.get_or_404(id=id)
-    customer.delete()
-    return jsonify({"message": "Customer deleted successfully"})
+    try:
+        # Convert string id to ObjectId
+        object_id = ObjectId(id)
+    except Exception:
+        return jsonify({"error": "Invalid customer ID"}), 400
+    
+    result = Customers_collection.delete_one({"_id": object_id})
 
+    if result.deleted_count == 1:
+        return jsonify({"message": "Customer deleted successfully"}), 200
+    else:
+        return jsonify({"error": "Customer not found"}), 404
 # ---- Package Routes ----
+
+def serialize_item(item):
+    item['_id'] = str(item['_id'])
+    return item
+
+@app.route('/items', methods=['GET'])
+def get_items():
+    items = list(Inventory_collection.find())
+    return jsonify([serialize_item(item) for item in items]), 200
+
+# POST: Add new item
+@app.route('/items', methods=['POST'])
+def add_item():
+    data = request.get_json()
+    item = {
+        'name': data['name'],
+        'quantity': int(data['quantity']),
+        'price': float(data['price'])
+    }
+    result = Inventory_collection.insert_one(item)
+    item['_id'] = str(result.inserted_id)
+    return jsonify(item), 201
+
+# PUT: Update item by ID
+@app.route('/items/<item_id>', methods=['PUT'])
+def update_item(item_id):
+    data = request.get_json()
+    updated_data = {
+        'name': data['name'],
+        'quantity': int(data['quantity']),
+        'price': float(data['price'])
+    }
+    result = Inventory_collection.update_one({'_id': ObjectId(item_id)}, {'$set': updated_data})
+    if result.matched_count:
+        return jsonify({'_id': item_id, **updated_data}), 200
+    return jsonify({'error': 'Item not found'}), 404
+
+# DELETE: Delete item by ID
+@app.route('/items/<item_id>', methods=['DELETE'])
+def delete_item(item_id):
+    result = Inventory_collection.delete_one({'_id': ObjectId(item_id)})
+    if result.deleted_count:
+        return jsonify({'message': 'Item deleted'}), 200
+    return jsonify({'error': 'Item not found'}), 404
+
 
 @app.route('/packages/<string:customer_id>', methods=['POST'])
 def create_package(customer_id):
